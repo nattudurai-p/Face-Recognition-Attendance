@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Face Recognition Attendance</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        .container {
+            margin: 20px auto;
+            max-width: 600px;
+        }
+        video, canvas {
+            border: 2px solid #333;
+            margin: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        #result {
+            margin-top: 20px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Face Recognition Attendance</h1>
+        <video id="video" width="400" height="300" autoplay></video>
+        <canvas id="canvas" width="400" height="300"></canvas>
+        <div>
+            <button id="registerBtn">Register User</button>
+            <button id="recognizeBtn">Mark Attendance</button>
+        </div>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const registerBtn = document.getElementById('registerBtn');
+        const recognizeBtn = document.getElementById('recognizeBtn');
+        const resultDiv = document.getElementById('result');
+
+        // Access camera
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                video.srcObject = stream;
+            })
+            .catch(err => {
+                console.error('Error accessing camera:', err);
+            });
+
+        // Capture image from video
+        function captureImage() {
+            canvas.getContext('2d').drawImage(video, 0, 0, 400, 300);
+            return canvas.toDataURL('image/jpeg').split(',')[1];
+        }
+
+        // Register user
+        registerBtn.addEventListener('click', async () => {
+            const name = prompt('Enter your name:');
+            if (!name) return;
+
+            const image = captureImage();
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('image', dataURLtoFile(`data:image/jpeg;base64,${image}`, 'face.jpg'));
+
+            try {
+                const response = await fetch('http://localhost:5000/register', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                resultDiv.innerHTML = `User ${data.name} registered successfully!`;
+            } catch (error) {
+                resultDiv.innerHTML = 'Error: ' + error.message;
+            }
+        });
+
+        // Recognize face
+        recognizeBtn.addEventListener('click', async () => {
+            const image = captureImage();
+            const formData = new FormData();
+            formData.append('image', dataURLtoFile(`data:image/jpeg;base64,${image}`, 'face.jpg'));
+
+            try {
+                const response = await fetch('http://localhost:5000/recognize', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                if (data.success) {
+                    resultDiv.innerHTML = `Attendance marked for ${data.name}!`;
+                } else {
+                    resultDiv.innerHTML = 'Error: ' + data.error;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = 'Error: ' + error.message;
+            }
+        });
+
+        // Helper function to convert dataURL to File
+        function dataURLtoFile(dataurl, filename) {
+            const arr = dataurl.split(',');
+            const mime = arr[0].match(/:(.*?);/)[1];
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) {
+                u8arr[n] = bstr.charCodeAt(n);
+            }
+            return new File([u8arr], filename, { type: mime });
+        }
+    </script>
+</body>
+</html>
